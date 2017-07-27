@@ -39,12 +39,12 @@ ticket_sales_by_order_id = {}
   ticket_sales_by_order_id[hash[:orderID]] << row
 end
 venue_driver_header_slice =
-  venuedriver_sheet.row(1).slice(1,15).
+  venuedriver_sheet.row(1).slice(1,13).
     insert(5, 'subtotal').
     # From Kyle:
     # "	Can you add two blank columns between service_charge_currency and
     # “total”?"
-    insert(10, ['', ''])
+    insert(10, ['', '', 'variance'])
 # From Kyle:
 # "Please remove the “first” column and “last” column after “total”."
 2.times { venue_driver_header_slice.delete_at(12) }
@@ -75,7 +75,7 @@ output_rows = []
 elsif order_id_ticket_sales.length > 0
     # Emit an output row for each
     order_id_ticket_sales.each do |raw_sale_row|
-      sliced_sale_row = raw_sale_row.slice(1, 15)
+      sliced_sale_row = raw_sale_row.slice(1, 13)
 
       # From Kyle: "Can you insert a black column into column J and have it
       # calculate =H x I?"
@@ -85,6 +85,7 @@ elsif order_id_ticket_sales.length > 0
         "=H#{output_row_number}*I#{output_row_number}",
         sliced_sale_row.slice(5, 4),
         nil, nil,
+        'variance',
         sliced_sale_row[9],
         sliced_sale_row.slice(12, sliced_sale_row.length)
       ]
@@ -98,7 +99,7 @@ elsif order_id_ticket_sales.length > 0
   else
     output_rows << [
       row.slice(0, 4),
-      Array.new(16, nil),
+      Array.new(15, nil),
       row.slice(4, row.length)
     ].flatten
   end
