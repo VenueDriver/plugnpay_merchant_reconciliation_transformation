@@ -1,23 +1,25 @@
 GEM
   remote: https://rubygems.org/
   specs:
+    axlsx (2.1.0.pre)
+      htmlentities (~> 4.3.1)
+      nokogiri (>= 1.4.1)
+      rubyzip (~> 1.1.7)
+    htmlentities (4.3.4)
     mini_portile2 (2.2.0)
     nokogiri (1.8.0)
       mini_portile2 (~> 2.2.0)
     roo (2.7.1)
       nokogiri (~> 1)
       rubyzip (~> 1.1, < 2.0.0)
-    rubyXL (3.3.26)
-      nokogiri (>= 1.4.4)
-      rubyzip (>= 1.1.6)
-    rubyzip (1.2.1)
+    rubyzip (1.1.7)
 
 PLATFORMS
   ruby
 
 DEPENDENCIES
-  roo (~> 2.4)
-  rubyXL
+  axlsx (= 2.1.0.pre)
+  roo (~> 2.0)
 
 BUNDLED WITH
    1.15.1

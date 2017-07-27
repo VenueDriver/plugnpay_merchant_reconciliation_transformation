@@ -1,5 +1,5 @@
 require 'roo'
-require 'rubyXL'
+require 'axlsx'
 
 # Get input file name.
 unless filename = ARGV[0] and File.exist?(filename)
@@ -16,7 +16,8 @@ plugnpay_sheet_name = xlsx.sheets.select{|sheet| sheet =~ /VisaMC/i}.first
 puts "PlugNPay sheet: #{plugnpay_sheet_name.inspect}"
 
 # Locate Venue Driver report sheet, also by looking for the name.
-venuedriver_sheet_name = xlsx.sheets.select{|sheet| sheet =~ /VD\s*Report/i}.first
+venuedriver_sheet_name =
+  xlsx.sheets.select{|sheet| sheet =~ /VD\s*Report/i}.first
 puts "Venue Driver report sheet: #{venuedriver_sheet_name.inspect}"
 
 # Derive the output file name from the input file name.
@@ -37,7 +38,16 @@ ticket_sales_by_order_id = {}
   # Add this ticket sale row to the bucket for this order ID.
   ticket_sales_by_order_id[hash[:orderID]] << row
 end
-venue_driver_header_slice = venuedriver_sheet.row(1).slice(1,15)
+venue_driver_header_slice =
+  venuedriver_sheet.row(1).slice(1,15).
+    insert(5, 'subtotal').
+    # From Kyle:
+    # "	Can you add two blank columns between service_charge_currency and
+    # “total”?"
+    insert(10, ['', ''])
+# From Kyle:
+# "Please remove the “first” column and “last” column after “total”."
+2.times { venue_driver_header_slice.delete_at(12) }
 
 # Loop through each row in the PlugNPay sheet.
 output_rows = []
@@ -65,19 +75,31 @@ output_rows = []
 elsif order_id_ticket_sales.length > 0
     # Emit an output row for each
     order_id_ticket_sales.each do |raw_sale_row|
-      sliced_sale_row = raw_sale_row.slice(1,15)
+      sliced_sale_row = raw_sale_row.slice(1, 15)
+
+      # From Kyle: "Can you insert a black column into column J and have it
+      # calculate =H x I?"
+      output_row_number = output_rows.count+1
+      sliced_sale_row_with_subtotal = [
+        sliced_sale_row.slice(0,5),
+        "=H#{output_row_number}*I#{output_row_number}",
+        sliced_sale_row.slice(5, 4),
+        nil, nil,
+        sliced_sale_row[9],
+        sliced_sale_row.slice(12, sliced_sale_row.length)
+      ]
 
       output_rows << [
-        row.slice(0,4),
-        sliced_sale_row,
-        row.slice(4,row.length)
+        row.slice(0, 4),
+        sliced_sale_row_with_subtotal,
+        row.slice(4, row.length)
       ].flatten
     end
   else
     output_rows << [
-      row.slice(0,4),
-      Array.new(15, nil),
-      row.slice(4,row.length)
+      row.slice(0, 4),
+      Array.new(16, nil),
+      row.slice(4, row.length)
     ].flatten
   end
 
@@ -86,11 +108,11 @@ elsif order_id_ticket_sales.length > 0
 end
 
 # Write the output_rows array to a file.
-workbook = RubyXL::Workbook.new
-worksheet = workbook[0]
-output_rows.each_with_index do |row, row_number|
-  row.each_with_index do |cell, column_number|
-    worksheet.add_cell(row_number, column_number, cell)
+p = Axlsx::Package.new
+p.workbook.add_worksheet(:name => "Transformed Output") do |sheet|
+  output_rows.each do |row|
+    sheet.add_row row
   end
 end
-workbook.write(outfile)
+p.use_shared_strings = true
+p.serialize(outfile)
