@@ -2,10 +2,12 @@ require 'roo'
 require 'axlsx'
 
 # Get input file name.
-unless filename = ARGV[0] and File.exist?(filename)
-  puts "Usage: #{$0} spreadsheet.xlsx"
-  exit
-end
+# unless filename = ARGV[0] and File.exist?(filename)
+#   puts "Usage: #{$0} spreadsheet.xlsx"
+#   exit
+# end
+# For packaging with OCRA.
+filename = 'spreadsheet.xlsx'
 
 # Open the spreadsheet and get basic info.
 xlsx = Roo::Spreadsheet.open(filename)
@@ -44,7 +46,8 @@ venue_driver_header_slice =
     # From Kyle:
     # "	Can you add two blank columns between service_charge_currency and
     # “total”?"
-    insert(10, ['', '', 'variance'])
+    insert(10, ['', '']).
+    insert(14, 'variance')
 # From Kyle:
 # "Please remove the “first” column and “last” column after “total”."
 2.times { venue_driver_header_slice.delete_at(12) }
@@ -74,7 +77,7 @@ output_rows = []
   # If this row has an order ID, and...
 elsif order_id_ticket_sales.length > 0
     # Emit an output row for each
-    order_id_ticket_sales.each do |raw_sale_row|
+    order_id_ticket_sales.each_with_index do |raw_sale_row, raw_sale_row_index|
       sliced_sale_row = raw_sale_row.slice(1, 13)
 
       # From Kyle: "Can you insert a black column into column J and have it
@@ -85,15 +88,22 @@ elsif order_id_ticket_sales.length > 0
         "=H#{output_row_number}*I#{output_row_number}",
         sliced_sale_row.slice(5, 4),
         nil, nil,
-        'variance',
         sliced_sale_row[9],
+        # ENG-561 - Variance column.
+        "=Q#{output_row_number}-W#{output_row_number}",
         sliced_sale_row.slice(12, sliced_sale_row.length)
       ]
+
+      # From Kyle:
+      # "If there are multiple transaction for an Order ID, only the first row
+      # should display the Plug N Pay transaction amount." ENG-562
+      remainder = row.slice(4, row.length)
+      remainder[3] = nil if raw_sale_row_index > 0
 
       output_rows << [
         row.slice(0, 4),
         sliced_sale_row_with_subtotal,
-        row.slice(4, row.length)
+        remainder
       ].flatten
     end
   else
@@ -112,7 +122,11 @@ end
 p = Axlsx::Package.new
 p.workbook.add_worksheet(:name => "Transformed Output") do |sheet|
   output_rows.each do |row|
-    sheet.add_row row
+    types = Array.new(21, nil)
+    types[3] = :string
+    types[21] = :string
+    row[21] = row[21].to_s.gsub(/^\d{4}\-/,'')
+    sheet.add_row row, types: types
   end
 end
 p.use_shared_strings = true
